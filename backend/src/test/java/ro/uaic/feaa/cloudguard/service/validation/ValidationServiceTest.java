@@ -89,7 +89,7 @@ class ValidationServiceTest {
 
     @Test
     void v3_policyCodeMustFollowFormat() {
-        SecurityPolicy policy = new SecurityPolicy("nis2-enc-1", "Criptare", Severity.HIGH, null,
+        SecurityPolicy policy = new SecurityPolicy("nis2-enc-1", "Criptare", Severity.HIGH, ResourceType.DATABASE,
                 ResourceConfiguration.ENCRYPTION_ENABLED, "true");
         assertThatThrownBy(() -> validationService.validate(policy))
                 .hasMessageContaining("CADRU-DOMENIU-NNN");

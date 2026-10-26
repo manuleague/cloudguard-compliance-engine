@@ -1,9 +1,7 @@
 package ro.uaic.feaa.cloudguard.service.computation;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.List;
 
 import org.springframework.stereotype.Service;
 
@@ -11,19 +9,14 @@ import ro.uaic.feaa.cloudguard.domain.model.CloudResource;
 import ro.uaic.feaa.cloudguard.domain.model.ComplianceViolation;
 import ro.uaic.feaa.cloudguard.domain.model.SecurityPolicy;
 import ro.uaic.feaa.cloudguard.domain.model.Severity;
-import ro.uaic.feaa.cloudguard.domain.model.ViolationStatus;
-import ro.uaic.feaa.cloudguard.domain.repository.ComplianceViolationRepository;
 
+/**
+ * Regulile C1–C2 se calculează aici, la crearea încălcării.
+ * C3 și C4 sunt câmpuri calculate ale entităților (timeToResolveHours, complianceScore);
+ * serviciul le expune ca să poată fi folosite de celelalte servicii și de vederi.
+ */
 @Service
 public class ComplianceComputationServiceImpl implements ComplianceComputationService {
-
-    private static final int MAX_SCORE = 100;
-
-    private final ComplianceViolationRepository violationRepository;
-
-    public ComplianceComputationServiceImpl(ComplianceViolationRepository violationRepository) {
-        this.violationRepository = violationRepository;
-    }
 
     @Override
     public Severity computeSeverity(SecurityPolicy policy, CloudResource resource) {
@@ -38,25 +31,16 @@ public class ComplianceComputationServiceImpl implements ComplianceComputationSe
 
     @Override
     public Long computeResolutionHours(ComplianceViolation violation) {
-        if (violation.getResolvedAt() == null) {
-            return null;
-        }
-        return Duration.between(violation.getDetectedAt(), violation.getResolvedAt()).toHours();
+        return violation.getResolvedAt() == null ? null : violation.timeToResolveHours();
     }
 
     @Override
     public int computeComplianceScore(Collection<ComplianceViolation> violations) {
-        int penalty = violations.stream()
-                .filter(ComplianceViolation::isActive)
-                .mapToInt(v -> v.getSeverity().getScorePenalty())
-                .sum();
-        return Math.max(0, MAX_SCORE - penalty);
+        return CloudResource.scoreFor(violations);
     }
 
     @Override
     public int computeComplianceScore(CloudResource resource) {
-        List<ComplianceViolation> active = violationRepository.findByResourceAndStatusIn(
-                resource, List.of(ViolationStatus.OPEN, ViolationStatus.UNDER_REVIEW));
-        return computeComplianceScore(active);
+        return resource.complianceScore();
     }
 }

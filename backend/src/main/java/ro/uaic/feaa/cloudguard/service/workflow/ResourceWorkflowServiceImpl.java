@@ -61,6 +61,33 @@ public class ResourceWorkflowServiceImpl implements ResourceWorkflowService {
     }
 
     @Override
+    public CloudResource updateResource(AppUser owner, NewResource data) {
+        validationService.checkRole(owner, UserRole.RESOURCE_OWNER);
+        CloudResource resource = findResource(data.externalId());
+        validationService.checkTeamOwnership(owner, resource);
+        resource.update(data.name() == null ? null : data.name().trim(), data.type(), data.environment(),
+                data.provider(), data.configuration());
+        validationService.validate(resource);
+        auditService.record(owner, AuditAction.RESOURCE_UPDATED, "CloudResource", resource.getId());
+        return resource;
+    }
+
+    @Override
+    public void deleteResource(AppUser owner, String externalId) {
+        validationService.checkRole(owner, UserRole.RESOURCE_OWNER);
+        CloudResource resource = findResource(externalId);
+        validationService.checkTeamOwnership(owner, resource);
+        if (resource.hasViolations()) {
+            throw new BusinessRuleException("Resursa " + resource.getName()
+                    + " are încălcări înregistrate și nu poate fi ștearsă");
+        }
+        Long id = resource.getId();
+        resource.detachFromTeam();
+        resourceRepository.delete(resource);
+        auditService.record(owner, AuditAction.RESOURCE_DELETED, "CloudResource", id);
+    }
+
+    @Override
     public RegulatoryFramework defineFramework(AppUser officer, String code, String name, ObligationLevel level) {
         validationService.checkRole(officer, UserRole.SECURITY_OFFICER);
         RegulatoryFramework framework = frameworkFactory.createFramework(code, name, level);
@@ -88,12 +115,16 @@ public class ResourceWorkflowServiceImpl implements ResourceWorkflowService {
     @Override
     public CloudResource assignPolicy(AppUser officer, String resourceExternalId, String policyCode) {
         validationService.checkRole(officer, UserRole.SECURITY_OFFICER);
-        CloudResource resource = resourceRepository.findByExternalId(resourceExternalId)
-                .orElseThrow(() -> new NotFoundException("Resursa " + resourceExternalId + " nu există"));
+        CloudResource resource = findResource(resourceExternalId);
         SecurityPolicy policy = policyRepository.findByCode(policyCode)
                 .orElseThrow(() -> new NotFoundException("Politica " + policyCode + " nu există"));
         resource.assignPolicy(policy);
         auditService.record(officer, AuditAction.POLICY_ASSIGNED, "CloudResource", resource.getId());
         return resource;
+    }
+
+    private CloudResource findResource(String externalId) {
+        return resourceRepository.findByExternalId(externalId)
+                .orElseThrow(() -> new NotFoundException("Resursa " + externalId + " nu există"));
     }
 }

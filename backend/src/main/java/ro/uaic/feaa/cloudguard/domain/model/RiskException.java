@@ -1,9 +1,9 @@
 package ro.uaic.feaa.cloudguard.domain.model;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.Objects;
 
+import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -22,8 +22,9 @@ import jakarta.validation.constraints.NotNull;
 import ro.uaic.feaa.cloudguard.domain.model.vo.Justification;
 
 /**
- * Component entity în agregatul „Încălcare”: excepția de risc cerută
- * pentru o încălcare. Se creează doar prin ComplianceViolation.requestException.
+ * Component entity în agregatul „Încălcare”: excepția de risc cerută pentru o încălcare.
+ * Se creează doar prin ComplianceViolation.requestException; solicitantul este
+ * responsabilul încălcării (assignee).
  */
 @Entity
 @Table(name = "risk_exception")
@@ -38,9 +39,15 @@ public class RiskException {
     @JoinColumn(name = "violation_id", nullable = false, unique = true)
     private ComplianceViolation violation;
 
+    /** Ofițerul care a decis asupra excepției (relația „aprobat de”). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    private AppUser approvedBy;
+
     @Valid
     @NotNull
     @Embedded
+    @AttributeOverride(name = "text", column = @Column(name = "justification", nullable = false, length = 1000))
     private Justification justification;
 
     @NotNull
@@ -52,50 +59,41 @@ public class RiskException {
     @Column(name = "valid_until", nullable = false)
     private LocalDate validUntil;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "requested_by_id")
-    private AppUser requestedBy;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "decided_by_id")
-    private AppUser decidedBy;
-
-    @Column(name = "decided_at")
-    private LocalDateTime decidedAt;
-
     protected RiskException() {
         // pentru JPA
     }
 
-    RiskException(ComplianceViolation violation, AppUser requestedBy,
-                  Justification justification, LocalDate validUntil) {
+    RiskException(ComplianceViolation violation, Justification justification, LocalDate validUntil) {
         this.violation = violation;
-        this.requestedBy = requestedBy;
         this.justification = justification;
         this.validUntil = validUntil;
         this.status = ExceptionStatus.PENDING;
     }
 
-    /** A3: aprobă doar un SECURITY_OFFICER, diferit de cel care a cerut excepția. */
-    void approve(AppUser officer, LocalDateTime when) {
+    /** Aprobare: încălcarea devine RISK_ACCEPTED (regula A3). */
+    public void approve(AppUser officer) {
         checkDecider(officer);
         this.status = ExceptionStatus.APPROVED;
-        this.decidedBy = officer;
-        this.decidedAt = when;
+        this.approvedBy = officer;
+        violation.acceptRisk();
     }
 
-    void reject(AppUser officer, LocalDateTime when) {
+    /** Respingere: încălcarea rămâne UNDER_REVIEW și trebuie rezolvată. */
+    public void reject(AppUser officer) {
         checkDecider(officer);
         this.status = ExceptionStatus.REJECTED;
-        this.decidedBy = officer;
-        this.decidedAt = when;
+        this.approvedBy = officer;
     }
 
+    /** A3: decide doar un SECURITY_OFFICER, diferit de cel care a cerut excepția. */
     private void checkDecider(AppUser officer) {
+        if (status != ExceptionStatus.PENDING) {
+            throw new BusinessRuleException("Excepția de risc a fost deja " + status);
+        }
         if (officer == null || !officer.hasRole(UserRole.SECURITY_OFFICER)) {
             throw new BusinessRuleException("Doar un ofițer de securitate poate decide asupra unei excepții de risc");
         }
-        if (isSameUser(officer, requestedBy)) {
+        if (isSameUser(officer, violation.getAssignee())) {
             throw new BusinessRuleException("Excepția trebuie aprobată de alt utilizator decât cel care a cerut-o");
         }
     }
@@ -115,6 +113,10 @@ public class RiskException {
         return violation;
     }
 
+    public AppUser getApprovedBy() {
+        return approvedBy;
+    }
+
     public Justification getJustification() {
         return justification;
     }
@@ -125,17 +127,5 @@ public class RiskException {
 
     public LocalDate getValidUntil() {
         return validUntil;
-    }
-
-    public AppUser getRequestedBy() {
-        return requestedBy;
-    }
-
-    public AppUser getDecidedBy() {
-        return decidedBy;
-    }
-
-    public LocalDateTime getDecidedAt() {
-        return decidedAt;
     }
 }

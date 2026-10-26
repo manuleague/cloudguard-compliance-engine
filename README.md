@@ -57,11 +57,11 @@ Entități de suport: `Team`, `AppUser`, `AuditLog`.
 | V2 unicitate externalId | `ValidationService.checkUniqueExternalId` + constrângere UNIQUE |
 | A1 o singură încălcare activă | `ValidationService.checkNoActiveViolation`, apelată din `ComplianceViolationFactory` |
 | A2 tranzițiile de status | metodele din `ComplianceViolation` + `ViolationStatus.canMoveTo` |
-| A3 aprobarea excepției | `RiskException.approve` (doar SECURITY_OFFICER, alt utilizator decât solicitantul) |
+| A3 aprobarea excepției | `RiskException.approve` / `reject` (doar SECURITY_OFFICER, alt utilizator decât solicitantul) |
 | C1 severitatea | `ComplianceComputationService.computeSeverity` |
 | C2 termenul SLA | `ComplianceComputationService.computeSlaDueAt` |
-| C3 timpul de rezolvare | `ComplianceComputationService.computeResolutionHours` |
-| C4 scorul de conformitate | `ComplianceComputationService.computeComplianceScore` |
+| C3 timpul de rezolvare | câmpul calculat `ComplianceViolation.timeToResolveHours()` |
+| C4 scorul de conformitate | câmpul calculat `CloudResource.complianceScore()` |
 | C5 vederea pe echipă | `ComplianceViewService` → `TeamComplianceView` |
 
 ### Workflow-uri (user stories)
@@ -69,11 +69,14 @@ Entități de suport: `Team`, `AppUser`, `AuditLog`.
 | User story | Metodă |
 | --- | --- |
 | US-01 adăugare resursă | `ResourceWorkflowService.registerResource` |
+| FR-02 modificare / ștergere resursă | `ResourceWorkflowService.updateResource`, `deleteResource` |
 | US-02 definire și asociere politică | `ResourceWorkflowService.definePolicy`, `assignPolicy` |
 | US-03 evaluare de conformitate | `ComplianceWorkflowService.runAssessment` |
 | US-04 rezolvare încălcare | `ComplianceWorkflowService.startReview`, `resolve` |
-| FR-07 excepție de risc | `requestRiskException`, `approveRiskException`, `rejectRiskException` |
+| FR-07 excepție de risc | `ComplianceWorkflowService.requestRiskException`, `approveRiskException`, `rejectRiskException` |
 | US-05 jurnal de audit | `AuditService.findAll`, `historyOf` |
+
+Maparea JPA folosește exact tabelele și coloanele din diagrama SQL a documentului Sprint 1 (`docs/`).
 
 Jurnalul de audit nu poate fi modificat din aplicație: `AuditLog` este `@Immutable`,
 iar `AuditLogRepository` expune doar salvare și citire.

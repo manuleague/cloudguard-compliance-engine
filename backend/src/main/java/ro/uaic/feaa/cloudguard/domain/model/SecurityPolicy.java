@@ -44,12 +44,13 @@ public class SecurityPolicy {
 
     @NotNull(message = "Severitatea de bază este obligatorie")
     @Enumerated(EnumType.STRING)
-    @Column(name = "base_severity", nullable = false, length = 20)
+    @Column(name = "base_severity", nullable = false, length = 10)
     private Severity baseSeverity;
 
-    /** Tipul de resursă vizat; null înseamnă toate tipurile. */
+    /** Tipul de resursă căruia i se aplică politica. */
+    @NotNull(message = "Tipul de resursă vizat este obligatoriu")
     @Enumerated(EnumType.STRING)
-    @Column(name = "applicable_type", length = 30)
+    @Column(name = "applicable_type", nullable = false, length = 30)
     private ResourceType applicableType;
 
     @NotBlank(message = "Atributul verificat este obligatoriu")
@@ -59,7 +60,7 @@ public class SecurityPolicy {
     private String ruleAttribute;
 
     @NotBlank(message = "Valoarea așteptată este obligatorie")
-    @Column(name = "expected_value", nullable = false, length = 200)
+    @Column(name = "expected_value", nullable = false, length = 100)
     private String expectedValue;
 
     protected SecurityPolicy() {
@@ -81,10 +82,10 @@ public class SecurityPolicy {
     }
 
     public boolean appliesTo(CloudResource resource) {
-        return applicableType == null || applicableType == resource.getResourceType();
+        return applicableType == resource.getResourceType();
     }
 
-    /** Adevărat dacă resursa respectă politica (sau politica nu se aplică tipului ei). */
+    /** Adevărat dacă resursa respectă politica (sau politica nu se aplică tipului ei de resursă). */
     public boolean evaluate(CloudResource resource) {
         return !appliesTo(resource) || resource.getConfiguration().satisfies(ruleAttribute, expectedValue);
     }

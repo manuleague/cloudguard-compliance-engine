@@ -17,14 +17,14 @@ public class ResourceConfiguration {
     public static final String PUBLIC_ACCESS = "publicAccess";
     public static final String OPEN_PORTS = "openPorts";
 
-    @Column(name = "encryption_enabled", nullable = false)
+    @Column(name = "encryption_enabled")
     private boolean encryptionEnabled;
 
-    @Column(name = "public_access", nullable = false)
+    @Column(name = "public_access")
     private boolean publicAccess;
 
     @Convert(converter = PortSetConverter.class)
-    @Column(name = "open_ports", length = 500)
+    @Column(name = "open_ports", length = 200)
     private PortSet openPorts = PortSet.empty();
 
     protected ResourceConfiguration() {

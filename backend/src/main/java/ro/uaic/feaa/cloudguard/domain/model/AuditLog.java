@@ -6,8 +6,6 @@ import org.hibernate.annotations.Immutable;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -35,13 +33,13 @@ public class AuditLog {
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 
-    @NotNull
-    @Enumerated(EnumType.STRING)
+    /** Numele acțiunii, ex. VIOLATION_RESOLVED (valorile posibile sunt în AuditAction). */
+    @NotBlank
     @Column(nullable = false, length = 40)
-    private AuditAction action;
+    private String action;
 
     @NotBlank
-    @Column(name = "entity_type", nullable = false, length = 50)
+    @Column(name = "entity_type", nullable = false, length = 40)
     private String entityType;
 
     @Column(name = "entity_id")
@@ -50,8 +48,9 @@ public class AuditLog {
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @NotNull
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
     private AppUser user;
 
     protected AuditLog() {
@@ -61,7 +60,7 @@ public class AuditLog {
     public AuditLog(AppUser user, AuditAction action, String entityType, Long entityId,
                     String ipAddress, LocalDateTime occurredAt) {
         this.user = user;
-        this.action = action;
+        this.action = action.name();
         this.entityType = entityType;
         this.entityId = entityId;
         this.ipAddress = ipAddress;
@@ -76,7 +75,7 @@ public class AuditLog {
         return occurredAt;
     }
 
-    public AuditAction getAction() {
+    public String getAction() {
         return action;
     }
 

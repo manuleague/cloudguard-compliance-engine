@@ -1,6 +1,9 @@
 package ro.uaic.feaa.cloudguard.domain.model;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -17,6 +20,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -38,7 +42,7 @@ public class CloudResource {
 
     /** V2: obligatoriu și unic (unicitatea e garantată de constrângerea din baza de date). */
     @NotBlank(message = "ID-ul extern al resursei este obligatoriu")
-    @Column(name = "external_id", nullable = false, unique = true, length = 100)
+    @Column(name = "external_id", nullable = false, unique = true, length = 255)
     private String externalId;
 
     /** V1 */
@@ -78,6 +82,10 @@ public class CloudResource {
             inverseJoinColumns = @JoinColumn(name = "policy_id"))
     private Set<SecurityPolicy> policies = new LinkedHashSet<>();
 
+    /** Încălcările resursei (partea inversă a relației ComplianceViolation -> CloudResource). */
+    @OneToMany(mappedBy = "resource")
+    private List<ComplianceViolation> violations = new ArrayList<>();
+
     protected CloudResource() {
         // pentru JPA
     }
@@ -105,12 +113,45 @@ public class CloudResource {
         policies.remove(policy);
     }
 
-    public void updateConfiguration(ResourceConfiguration newConfiguration) {
-        this.configuration = newConfiguration;
+    /** FR-02: modificarea datelor resursei; externalId și echipa rămân aceleași. */
+    public void update(String name, ResourceType resourceType, Environment environment,
+                       CloudProvider provider, ResourceConfiguration configuration) {
+        this.name = name;
+        this.resourceType = resourceType;
+        this.environment = environment;
+        this.provider = provider;
+        this.configuration = configuration;
     }
 
     public boolean isProduction() {
         return environment == Environment.PRODUCTION;
+    }
+
+    /** C4 (câmp calculat): 100 minus penalizările încălcărilor active, minimum 0. */
+    public int complianceScore() {
+        return scoreFor(violations);
+    }
+
+    /** Formula C4, aplicată pe orice listă de încălcări. */
+    public static int scoreFor(Collection<ComplianceViolation> violations) {
+        int penalty = violations.stream()
+                .filter(ComplianceViolation::isActive)
+                .mapToInt(v -> v.getSeverity().getScorePenalty())
+                .sum();
+        return Math.max(0, 100 - penalty);
+    }
+
+    public boolean hasViolations() {
+        return !violations.isEmpty();
+    }
+
+    /** Desprinde resursa de echipă înainte de ștergere. */
+    public void detachFromTeam() {
+        team.removeResource(this);
+    }
+
+    void addViolation(ComplianceViolation violation) {
+        violations.add(violation);
     }
 
     public Long getId() {
@@ -143,6 +184,10 @@ public class CloudResource {
 
     public Team getTeam() {
         return team;
+    }
+
+    public List<ComplianceViolation> getViolations() {
+        return Collections.unmodifiableList(violations);
     }
 
     public Set<SecurityPolicy> getPolicies() {

@@ -1,5 +1,6 @@
 package ro.uaic.feaa.cloudguard.domain.model;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -25,11 +26,14 @@ import ro.uaic.feaa.cloudguard.domain.model.vo.Justification;
 /**
  * Root entity pentru agregatul „Încălcare de conformitate”.
  * Componente: RiskException (entitate) și Justification (value object).
- * Toate schimbările de status trec prin metodele de aici (regula A2).
+ * Toate schimbările de status trec prin metodele agregatului (regula A2).
  */
 @Entity
 @Table(name = "compliance_violation")
 public class ComplianceViolation {
+
+    /** Valabilitatea implicită a unei excepții de risc, dacă nu se dă o dată. */
+    public static final int DEFAULT_EXCEPTION_DAYS = 90;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -45,10 +49,15 @@ public class ComplianceViolation {
     @JoinColumn(name = "policy_id", nullable = false)
     private SecurityPolicy policy;
 
+    /** Responsabilul încălcării (relația „responsabil” din diagrama de clase). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assignee_id")
+    private AppUser assignee;
+
     /** C1, calculată la creare. */
     @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 10)
     private Severity severity;
 
     @NotNull
@@ -70,12 +79,8 @@ public class ComplianceViolation {
 
     @Valid
     @Embedded
-    @AttributeOverride(name = "text", column = @Column(name = "resolution_text", length = 1000))
+    @AttributeOverride(name = "text", column = @Column(name = "resolution_note", length = 1000))
     private Justification resolution;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "responsible_id")
-    private AppUser responsible;
 
     @Valid
     @OneToOne(mappedBy = "violation", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -93,51 +98,56 @@ public class ComplianceViolation {
         this.detectedAt = detectedAt;
         this.slaDueAt = slaDueAt;
         this.status = ViolationStatus.OPEN;
+        if (resource != null) {
+            resource.addViolation(this);
+        }
     }
 
-    /** OPEN -> UNDER_REVIEW: utilizatorul preia încălcarea. */
-    public void startReview(AppUser user) {
+    /** OPEN -> UNDER_REVIEW: utilizatorul preia încălcarea și devine responsabil. */
+    public void startReview(AppUser u) {
         moveTo(ViolationStatus.UNDER_REVIEW);
-        this.responsible = user;
+        this.assignee = u;
     }
 
     /** UNDER_REVIEW -> RESOLVED, doar cu justificare. */
-    public void resolve(AppUser user, Justification justification, LocalDateTime when) {
-        requireJustification(justification);
+    public void resolve(AppUser u, Justification j) {
+        resolve(u, j, LocalDateTime.now());
+    }
+
+    /** Varianta cu momentul rezolvării dat explicit (serviciile folosesc ceasul aplicației). */
+    public void resolve(AppUser u, Justification j, LocalDateTime when) {
+        requireJustification(j);
         if (hasPendingException()) {
             throw new BusinessRuleException("Încălcarea are o excepție de risc în curs de aprobare");
         }
         moveTo(ViolationStatus.RESOLVED);
-        this.resolution = justification;
+        this.resolution = j;
         this.resolvedAt = when;
-        this.responsible = user;
+        this.assignee = u;
     }
 
-    /** Cererea unei excepții de risc; o încălcare are cel mult o excepție. */
-    public RiskException requestException(AppUser requester, Justification justification, LocalDate validUntil) {
-        requireJustification(justification);
+    /** Cererea unei excepții de risc, valabilă implicit 90 de zile. */
+    public RiskException requestException(AppUser u, Justification j) {
+        return requestException(u, j, LocalDate.now().plusDays(DEFAULT_EXCEPTION_DAYS));
+    }
+
+    /** Cererea unei excepții de risc; o încălcare are cel mult o excepție (one-to-one). */
+    public RiskException requestException(AppUser u, Justification j, LocalDate validUntil) {
+        requireJustification(j);
         if (status != ViolationStatus.UNDER_REVIEW) {
             throw new BusinessRuleException("Excepția se poate cere doar pentru o încălcare UNDER_REVIEW");
         }
         if (riskException != null) {
             throw new BusinessRuleException("Pentru această încălcare a fost deja cerută o excepție de risc");
         }
-        this.riskException = new RiskException(this, requester, justification, validUntil);
+        this.assignee = u;
+        this.riskException = new RiskException(this, j, validUntil);
         return riskException;
     }
 
-    /** Aprobarea excepției: UNDER_REVIEW -> RISK_ACCEPTED (regula A3 se verifică în RiskException). */
-    public void approveException(AppUser officer, LocalDateTime when) {
-        requirePendingException();
-        riskException.approve(officer, when);
-        moveTo(ViolationStatus.RISK_ACCEPTED);
-        this.resolvedAt = when;
-    }
-
-    /** Respingerea excepției: încălcarea rămâne UNDER_REVIEW și trebuie rezolvată. */
-    public void rejectException(AppUser officer, LocalDateTime when) {
-        requirePendingException();
-        riskException.reject(officer, when);
+    /** C3 (câmp calculat): orele dintre detectare și rezolvare; 0 dacă nu e rezolvată. */
+    public long timeToResolveHours() {
+        return resolvedAt == null ? 0 : Duration.between(detectedAt, resolvedAt).toHours();
     }
 
     public boolean isActive() {
@@ -148,6 +158,11 @@ public class ComplianceViolation {
         return riskException != null && riskException.getStatus() == ExceptionStatus.PENDING;
     }
 
+    /** Apelată de RiskException.approve: UNDER_REVIEW -> RISK_ACCEPTED. */
+    void acceptRisk() {
+        moveTo(ViolationStatus.RISK_ACCEPTED);
+    }
+
     private void moveTo(ViolationStatus target) {
         if (!status.canMoveTo(target)) {
             throw new BusinessRuleException("Statusul nu se poate schimba din " + status + " în " + target);
@@ -155,15 +170,9 @@ public class ComplianceViolation {
         this.status = target;
     }
 
-    private void requireJustification(Justification justification) {
-        if (justification == null || justification.getText() == null || justification.getText().isBlank()) {
+    private void requireJustification(Justification j) {
+        if (j == null || j.getText() == null || j.getText().isBlank()) {
             throw new BusinessRuleException("Schimbarea statusului necesită o justificare");
-        }
-    }
-
-    private void requirePendingException() {
-        if (!hasPendingException()) {
-            throw new BusinessRuleException("Nu există o excepție de risc în așteptare");
         }
     }
 
@@ -177,6 +186,10 @@ public class ComplianceViolation {
 
     public SecurityPolicy getPolicy() {
         return policy;
+    }
+
+    public AppUser getAssignee() {
+        return assignee;
     }
 
     public Severity getSeverity() {
@@ -201,10 +214,6 @@ public class ComplianceViolation {
 
     public Justification getResolution() {
         return resolution;
-    }
-
-    public AppUser getResponsible() {
-        return responsible;
     }
 
     public RiskException getRiskException() {

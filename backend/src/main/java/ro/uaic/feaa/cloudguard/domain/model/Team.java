@@ -62,6 +62,10 @@ public class Team {
         resources.add(resource);
     }
 
+    void removeResource(CloudResource resource) {
+        resources.remove(resource);
+    }
+
     void addMember(AppUser user) {
         members.add(user);
     }

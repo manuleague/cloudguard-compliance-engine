@@ -30,7 +30,9 @@ public final class TestData {
 
     public static SecurityPolicy encryptionPolicy(Severity severity) {
         RegulatoryFramework framework = new RegulatoryFramework("NIS2", "Directiva NIS2", ObligationLevel.MANDATORY);
-        return framework.addPolicy(new SecurityPolicy("NIS2-ENC-001", "Baze de date criptate", severity,
-                ResourceType.DATABASE, ResourceConfiguration.ENCRYPTION_ENABLED, "true"));
+        SecurityPolicy policy = new SecurityPolicy("NIS2-ENC-001", "Baze de date criptate", severity,
+                ResourceType.DATABASE, ResourceConfiguration.ENCRYPTION_ENABLED, "true");
+        framework.addPolicy(policy);
+        return policy;
     }
 }

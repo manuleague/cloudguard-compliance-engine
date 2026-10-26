@@ -15,7 +15,7 @@ public class Justification {
 
     @NotBlank(message = "Justificarea este obligatorie")
     @Size(min = 20, max = 1000, message = "Justificarea trebuie să aibă minimum 20 de caractere")
-    @Column(name = "justification_text", length = 1000)
+    @Column(name = "justification", length = 1000)
     private String text;
 
     protected Justification() {

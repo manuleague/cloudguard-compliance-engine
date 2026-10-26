@@ -32,12 +32,12 @@ public class AppUser {
 
     @NotBlank(message = "Adresa de e-mail este obligatorie")
     @Email(message = "Adresa de e-mail nu este validă")
-    @Column(nullable = false, length = 150)
+    @Column(nullable = false, unique = true, length = 150)
     private String email;
 
     @NotNull(message = "Rolul utilizatorului este obligatoriu")
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, length = 20)
     private UserRole role;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -132,6 +132,47 @@ class ComplianceWorkflowServiceTest {
                 .hasMessageContaining("aws-rds-orders");
     }
 
+    @Test
+    void fr02_ownerUpdatesResourceConfiguration() {
+        registerOrdersDb(false);
+
+        CloudResource updated = resourceWorkflow.updateResource(owner, new NewResource("aws-rds-orders",
+                "orders-db-v2", ResourceType.DATABASE, Environment.PRODUCTION, CloudProvider.AWS,
+                new ResourceConfiguration(true, false, PortSet.of(5432))));
+
+        assertThat(updated.getName()).isEqualTo("orders-db-v2");
+        assertThat(updated.getConfiguration().isEncryptionEnabled()).isTrue();
+    }
+
+    @Test
+    void fr02_ownerDeletesResourceWithoutViolations() {
+        registerOrdersDb(true);
+
+        resourceWorkflow.deleteResource(owner, "aws-rds-orders");
+
+        assertThatThrownBy(() -> resourceWorkflow.assignPolicy(officer, "aws-rds-orders", "NIS2-ENC-001"))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void fr02_resourceWithViolationsCannotBeDeleted() {
+        detectViolation();
+
+        assertThatThrownBy(() -> resourceWorkflow.deleteResource(owner, "aws-rds-orders"))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("nu poate fi ștearsă");
+    }
+
+    @Test
+    void fr02_ownerCannotUpdateResourceOfAnotherTeam() {
+        registerOrdersDb(false);
+        NewResource change = new NewResource("aws-rds-orders", "orders-db", ResourceType.DATABASE,
+                Environment.PRODUCTION, CloudProvider.AWS, new ResourceConfiguration(true, false, PortSet.empty()));
+
+        assertThatThrownBy(() -> resourceWorkflow.updateResource(otherTeamOwner, change))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
     // US-02
 
     @Test
@@ -144,7 +185,7 @@ class ComplianceWorkflowServiceTest {
 
     @Test
     void us02_onlySecurityOfficerCanDefinePolicies() {
-        NewPolicy policy = new NewPolicy("NIS2-NET-001", "Fără acces public", Severity.MEDIUM, null,
+        NewPolicy policy = new NewPolicy("NIS2-NET-001", "Fără acces public", Severity.MEDIUM, ResourceType.STORAGE_BUCKET,
                 ResourceConfiguration.PUBLIC_ACCESS, "false");
 
         assertThatThrownBy(() -> resourceWorkflow.definePolicy(owner, "NIS2", policy))
@@ -160,6 +201,7 @@ class ComplianceWorkflowServiceTest {
         assertThat(violation.getStatus()).isEqualTo(ViolationStatus.OPEN);
         assertThat(violation.getSeverity()).isEqualTo(Severity.CRITICAL);
         assertThat(violation.getSlaDueAt()).isEqualTo(NOW.plusHours(24));
+        assertThat(violation.getResource().complianceScore()).isEqualTo(60);
     }
 
     @Test
@@ -244,6 +286,7 @@ class ComplianceWorkflowServiceTest {
 
         assertThat(approved.getStatus()).isEqualTo(ViolationStatus.RISK_ACCEPTED);
         assertThat(approved.getRiskException().getStatus()).isEqualTo(ExceptionStatus.APPROVED);
+        assertThat(approved.getRiskException().getApprovedBy().getUsername()).isEqualTo("delia");
     }
 
     @Test
@@ -283,7 +326,8 @@ class ComplianceWorkflowServiceTest {
         List<AuditLog> history = auditService.historyOf(auditor, "ComplianceViolation", violation.getId());
 
         assertThat(history).extracting(AuditLog::getAction).containsExactly(
-                AuditAction.VIOLATION_CREATED, AuditAction.VIOLATION_REVIEW_STARTED, AuditAction.VIOLATION_RESOLVED);
+                AuditAction.VIOLATION_CREATED.name(), AuditAction.VIOLATION_REVIEW_STARTED.name(),
+                AuditAction.VIOLATION_RESOLVED.name());
         AuditLog last = history.get(history.size() - 1);
         assertThat(last.getUser().getUsername()).isEqualTo("emanuel");
         assertThat(last.getIpAddress()).isNotBlank();

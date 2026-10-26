@@ -2,6 +2,8 @@ package ro.uaic.feaa.cloudguard.domain.model;
 
 public enum AuditAction {
     RESOURCE_CREATED,
+    RESOURCE_UPDATED,
+    RESOURCE_DELETED,
     FRAMEWORK_CREATED,
     POLICY_CREATED,
     POLICY_ASSIGNED,

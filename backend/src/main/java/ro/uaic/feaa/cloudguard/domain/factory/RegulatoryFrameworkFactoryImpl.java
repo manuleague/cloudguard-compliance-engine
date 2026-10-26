@@ -32,6 +32,7 @@ public class RegulatoryFrameworkFactoryImpl implements RegulatoryFrameworkFactor
                 ruleAttribute, expectedValue);
         validationService.validate(policy);
         validationService.checkUniquePolicyCode(code);
-        return framework.addPolicy(policy);
+        framework.addPolicy(policy);
+        return policy;
     }
 }

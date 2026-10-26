@@ -60,14 +60,13 @@ public class RegulatoryFramework {
     }
 
     /** Politicile se adaugă doar prin root, ca să nu existe două politici cu același cod. */
-    public SecurityPolicy addPolicy(SecurityPolicy policy) {
+    public void addPolicy(SecurityPolicy policy) {
         boolean duplicate = policies.stream().anyMatch(p -> p.getCode().equals(policy.getCode()));
         if (duplicate) {
             throw new BusinessRuleException("Politica " + policy.getCode() + " există deja în cadrul " + code);
         }
         policy.attachTo(this);
         policies.add(policy);
-        return policy;
     }
 
     public Long getId() {

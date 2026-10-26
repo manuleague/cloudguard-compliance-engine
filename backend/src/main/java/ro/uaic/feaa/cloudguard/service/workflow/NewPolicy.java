@@ -3,7 +3,7 @@ package ro.uaic.feaa.cloudguard.service.workflow;
 import ro.uaic.feaa.cloudguard.domain.model.ResourceType;
 import ro.uaic.feaa.cloudguard.domain.model.Severity;
 
-/** Datele unei politici noi (US-02). applicableType null = toate tipurile de resurse. */
+/** Datele unei politici noi (US-02). */
 public record NewPolicy(String code,
                         String title,
                         Severity baseSeverity,

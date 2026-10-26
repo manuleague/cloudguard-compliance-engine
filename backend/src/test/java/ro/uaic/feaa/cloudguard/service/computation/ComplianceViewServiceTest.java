@@ -28,7 +28,7 @@ class ComplianceViewServiceTest {
         TeamRepository teamRepository = mock(TeamRepository.class);
         CloudResourceRepository resourceRepository = mock(CloudResourceRepository.class);
         ComplianceViolationRepository violationRepository = mock(ComplianceViolationRepository.class);
-        ComplianceComputationService computation = new ComplianceComputationServiceImpl(violationRepository);
+        ComplianceComputationService computation = new ComplianceComputationServiceImpl();
         ComplianceViewService viewService = new ComplianceViewServiceImpl(teamRepository, resourceRepository,
                 violationRepository, computation);
 

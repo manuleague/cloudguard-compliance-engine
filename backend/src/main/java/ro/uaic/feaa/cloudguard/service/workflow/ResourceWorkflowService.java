@@ -12,6 +12,12 @@ public interface ResourceWorkflowService {
     /** US-01: administratorul cloud adaugă o resursă în echipa sa. */
     CloudResource registerResource(AppUser owner, NewResource data);
 
+    /** FR-02: administratorul modifică o resursă a echipei sale (identificată prin externalId). */
+    CloudResource updateResource(AppUser owner, NewResource data);
+
+    /** FR-02: administratorul șterge o resursă care nu are încălcări înregistrate. */
+    void deleteResource(AppUser owner, String externalId);
+
     RegulatoryFramework defineFramework(AppUser officer, String code, String name, ObligationLevel level);
 
     /** US-02: ofițerul de securitate definește o politică într-un cadru. */

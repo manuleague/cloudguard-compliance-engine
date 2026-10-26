@@ -23,6 +23,6 @@ public interface ComplianceComputationService {
     /** C4: 100 minus penalizările încălcărilor active, minimum 0. */
     int computeComplianceScore(Collection<ComplianceViolation> violations);
 
-    /** C4 pentru o resursă, citind încălcările ei active din baza de date. */
+    /** C4 pentru o resursă (CloudResource.complianceScore). */
     int computeComplianceScore(CloudResource resource);
 }

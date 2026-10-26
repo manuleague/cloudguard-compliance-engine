@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ro.uaic.feaa.cloudguard.domain.factory.ComplianceViolationFactory;
 import ro.uaic.feaa.cloudguard.domain.model.AppUser;
 import ro.uaic.feaa.cloudguard.domain.model.AuditAction;
+import ro.uaic.feaa.cloudguard.domain.model.BusinessRuleException;
 import ro.uaic.feaa.cloudguard.domain.model.CloudResource;
 import ro.uaic.feaa.cloudguard.domain.model.ComplianceViolation;
 import ro.uaic.feaa.cloudguard.domain.model.RiskException;
@@ -122,7 +123,7 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
     public ComplianceViolation approveRiskException(AppUser officer, Long violationId) {
         validationService.checkRole(officer, UserRole.SECURITY_OFFICER);
         ComplianceViolation violation = load(violationId);
-        violation.approveException(officer, LocalDateTime.now(clock));
+        pendingException(violation).approve(officer);
         auditService.record(officer, AuditAction.EXCEPTION_APPROVED, VIOLATION, violationId);
         return violation;
     }
@@ -131,9 +132,16 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
     public ComplianceViolation rejectRiskException(AppUser officer, Long violationId) {
         validationService.checkRole(officer, UserRole.SECURITY_OFFICER);
         ComplianceViolation violation = load(violationId);
-        violation.rejectException(officer, LocalDateTime.now(clock));
+        pendingException(violation).reject(officer);
         auditService.record(officer, AuditAction.EXCEPTION_REJECTED, VIOLATION, violationId);
         return violation;
+    }
+
+    private RiskException pendingException(ComplianceViolation violation) {
+        if (!violation.hasPendingException()) {
+            throw new BusinessRuleException("Nu există o excepție de risc în așteptare");
+        }
+        return violation.getRiskException();
     }
 
     private ComplianceViolation load(Long violationId) {

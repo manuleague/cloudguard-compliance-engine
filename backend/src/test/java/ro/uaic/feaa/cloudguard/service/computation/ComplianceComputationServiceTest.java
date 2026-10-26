@@ -1,7 +1,6 @@
 package ro.uaic.feaa.cloudguard.service.computation;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,7 +15,6 @@ import ro.uaic.feaa.cloudguard.domain.model.Environment;
 import ro.uaic.feaa.cloudguard.domain.model.Severity;
 import ro.uaic.feaa.cloudguard.domain.model.UserRole;
 import ro.uaic.feaa.cloudguard.domain.model.vo.Justification;
-import ro.uaic.feaa.cloudguard.domain.repository.ComplianceViolationRepository;
 import ro.uaic.feaa.cloudguard.support.TestData;
 
 class ComplianceComputationServiceTest {
@@ -27,7 +25,7 @@ class ComplianceComputationServiceTest {
 
     @BeforeEach
     void setUp() {
-        computation = new ComplianceComputationServiceImpl(mock(ComplianceViolationRepository.class));
+        computation = new ComplianceComputationServiceImpl();
     }
 
     @Test
@@ -72,6 +70,26 @@ class ComplianceComputationServiceTest {
                 DETECTED.plusHours(30));
 
         assertThat(computation.computeResolutionHours(violation)).isEqualTo(30L);
+    }
+
+    @Test
+    void c3_entityComputesTimeToResolve() {
+        ComplianceViolation violation = violation(Severity.MEDIUM);
+        AppUser owner = new AppUser("emanuel", "emanuel@firma.ro", UserRole.RESOURCE_OWNER, null);
+        violation.startReview(owner);
+        violation.resolve(owner, Justification.of("Am închis accesul public la bucket"), DETECTED.plusHours(49));
+
+        assertThat(violation.timeToResolveHours()).isEqualTo(49L);
+    }
+
+    @Test
+    void c4_resourceComputesItsOwnComplianceScore() {
+        CloudResource resource = TestData.database(Environment.PRODUCTION, false);
+        new ComplianceViolation(resource, TestData.encryptionPolicy(Severity.HIGH), Severity.CRITICAL,
+                DETECTED, DETECTED.plusHours(24));
+
+        assertThat(resource.complianceScore()).isEqualTo(60);
+        assertThat(computation.computeComplianceScore(resource)).isEqualTo(60);
     }
 
     @Test
