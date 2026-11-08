@@ -78,5 +78,42 @@ Entități de suport: `Team`, `AppUser`, `AuditLog`.
 
 Maparea JPA folosește exact tabelele și coloanele din diagrama SQL a documentului Sprint 1 (`docs/`).
 
+## Sprint 3 — modelul de persistență (JPA)
+
+| Livrabil | Unde se află |
+| --- | --- |
+| Entități `@Entity` | `domain/model` |
+| Moștenire `@Inheritance` (SINGLE_TABLE) | `SecurityPolicy` (abstractă) → `EncryptionPolicy`, `PublicAccessPolicy`, `OpenPortsPolicy`; coloana discriminator este `rule_attribute` |
+| Value objects `@Enumerated`, `@Convert`, `@Embeddable` | enum-urile din `domain/model`; `PortSetConverter`, `ResourceConfiguration`, `Justification` în `domain/model/vo` |
+| Relațiile agregatelor (`mappedBy`, `fetch`, `cascade = ALL`, `orphanRemoval`) | `RegulatoryFramework.policies`, `ComplianceViolation.riskException`; `removePolicy` demonstrează `orphanRemoval` |
+| Repository-uri Spring `JpaRepository` cu operații personalizate | `domain/repository` (interogări derivate și `@Query`) |
+| (Bonus) interfață CRUD proprie + implementare cu `EntityManager` | `IRepository`, `TeamCrudRepository`, `domain/repository/jpa/TeamRepositoryJPA` |
+| Reguli de calcul și de audit cu `@EntityListeners` | `*EntityListener` din `domain/model` |
+| Teste noi pentru repository-uri | `src/test/java/.../domain/repository`, `.../domain/model/EntityListenersTest` |
+| Teste actualizate pentru serviciile de business | `ComplianceViewServiceTest`, `ComplianceWorkflowServiceTest`, `ValidationServiceTest` |
+
+### Interogări personalizate
+
+| Repository | Metodă | Folosită de |
+| --- | --- | --- |
+| `ComplianceViolationRepository` | `findOverdue` (`@Query`, termen SLA depășit) | `ComplianceWorkflowService.findOverdueViolations` |
+| `ComplianceViolationRepository` | `findForTeam` (`@Query`, o singură interogare pe echipă) | `ComplianceViewService` (vederea C5) |
+| `CloudResourceRepository` | `findUnencrypted`, `findWithViolationsIn` (`@Query`), `findByTeamName`, `findByEnvironment`, `findByProvider` | teste |
+| `RegulatoryFrameworkRepository` | `findByCodeWithPolicies` (`join fetch`), `findByObligationLevel` | teste |
+| `SecurityPolicyRepository` | `findByApplicableType`, `findByFrameworkCode` (polimorfe) | teste |
+| `AppUserRepository`, `TeamRepository` | `findByRole`, `findByEmail`, `findByNameContainingIgnoreCase` | teste |
+
+### Reguli aplicate prin `@EntityListeners`
+
+| Listener | Callback | Regula |
+| --- | --- | --- |
+| `ComplianceViolationEntityListener` | `@PrePersist` | C2 de rezervă: dacă termenul SLA lipsește, se calculează din severitate |
+| `ComplianceViolationEntityListener` | `@PrePersist`, `@PreUpdate` | A2 la nivel de bază de date: RESOLVED cere moment și justificare; rezolvarea nu poate fi înaintea detectării |
+| `ComplianceViolationEntityListener` | `@PreRemove` | încălcările nu se șterg (trasabilitate) |
+| `CloudResourceEntityListener` | `@PrePersist`, `@PreUpdate` | numele și ID-ul extern se curăță de spații |
+| `CloudResourceEntityListener` | `@PreRemove` | o resursă cu încălcări nu se șterge |
+| `AppUserEntityListener` | `@PrePersist`, `@PreUpdate` | e-mailul se salvează cu litere mici |
+| `AuditLogEntityListener` | `@PreUpdate`, `@PreRemove` | jurnalul de audit este imutabil (NFR-02) |
+
 Jurnalul de audit nu poate fi modificat din aplicație: `AuditLog` este `@Immutable`,
 iar `AuditLogRepository` expune doar salvare și citire.
