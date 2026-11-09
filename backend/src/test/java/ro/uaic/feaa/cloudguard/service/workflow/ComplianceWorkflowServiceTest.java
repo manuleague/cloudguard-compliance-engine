@@ -79,6 +79,7 @@ class ComplianceWorkflowServiceTest {
 
     @BeforeEach
     void setUp() {
+        clock.reset();
         Team platform = teamRepository.save(new Team("Platform"));
         Team marketing = teamRepository.save(new Team("Marketing"));
         owner = userRepository.save(new AppUser("emanuel", "emanuel@firma.ro", UserRole.RESOURCE_OWNER, platform));

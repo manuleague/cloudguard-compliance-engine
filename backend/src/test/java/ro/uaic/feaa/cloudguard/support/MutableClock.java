@@ -9,16 +9,23 @@ import java.time.ZoneId;
 /** Ceas de test pe care îl putem muta înainte, ca să verificăm calculele de timp. */
 public class MutableClock extends Clock {
 
+    private final Instant start;
     private Instant instant;
     private final ZoneId zone;
 
     public MutableClock(LocalDateTime start, ZoneId zone) {
-        this.instant = start.atZone(zone).toInstant();
+        this.start = start.atZone(zone).toInstant();
+        this.instant = this.start;
         this.zone = zone;
     }
 
     public void advance(Duration duration) {
         instant = instant.plus(duration);
+    }
+
+    /** Readuce ceasul la momentul de start. Ceasul este un bean comun tuturor testelor din același context. */
+    public void reset() {
+        instant = start;
     }
 
     @Override
